@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import pickle
 import os
+import sys
 
 # Konfigurasi halaman
 st.set_page_config(
@@ -10,57 +11,102 @@ st.set_page_config(
     layout="wide"
 )
 
-# Cache resource untuk model
+# Debug info
+st.sidebar.write(f"Python version: {sys.version}")
+
+# Cache resource untuk model dengan error handling yang lebih robust
 @st.cache_resource
 def load_model():
     try:
-        # Coba beberapa lokasi yang mungkin
-        possible_paths = [
-            'linear_regression_model.pkl',
-            './linear_regression_model.pkl',
-            os.path.join(os.path.dirname(__file__), 'linear_regression_model.pkl')
-        ]
+        # Cek apakah file model ada
+        model_path = 'linear_regression_model.pkl'
         
-        model = None
-        for model_path in possible_paths:
-            try:
-                with open(model_path, 'rb') as file:
-                    model = pickle.load(file)
-                st.sidebar.success(f"Model berhasil dimuat dari: {model_path}")
-                break
-            except FileNotFoundError:
-                continue
-                
-        if model is None:
-            st.error("ERROR: File model 'linear_regression_model.pkl' tidak ditemukan.")
-            st.markdown("""
-                **Solusi:** 
-                1. Pastikan file `linear_regression_model.pkl` ada di repository GitHub
-                2. File harus berada di folder yang sama dengan script ini
-                3. Pastikan file sudah di-commit dan push ke GitHub
-            """)
+        if not os.path.exists(model_path):
+            st.error(f"File model tidak ditemukan: {model_path}")
+            st.info("File yang ada di direktori:")
+            for file in os.listdir('.'):
+                st.write(f"- {file}")
             return None
-            
+        
+        st.sidebar.info(f"File model ditemukan: {model_path}")
+        
+        # Coba load model dengan berbagai method
+        with open(model_path, 'rb') as file:
+            model = pickle.load(file)
+        
+        st.sidebar.success("✅ Model berhasil dimuat!")
         return model
         
-    except Exception as e:
-        st.error(f"Terjadi kesalahan saat memuat model: {e}")
+    except ModuleNotFoundError as e:
+        st.error(f"Module tidak ditemukan: {e}")
         st.markdown("""
-            **Kemungkinan penyebab:**
-            - Versi scikit-learn tidak kompatibel
-            - Model corrupted
-            - Library dependencies tidak lengkap
+        **Solusi:** Tambahkan library yang missing ke requirements.txt
+        """)
+        return None
+        
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        st.markdown("""
+        **Kemungkinan penyebab:**
+        1. Model dibuat dengan versi scikit-learn yang berbeda
+        2. Ada library yang missing
+        3. Model file corrupted
+        
+        **Coba solusi ini:**
+        - Pastikan requirements.txt sesuai
+        - Gunakan Python 3.11 (buat runtime.txt)
+        - Re-train model dengan versi library terbaru
         """)
         return None
 
 # Load model
 model = load_model()
 
-# Jika model tidak berhasil dimuat, hentikan aplikasi
+# Jika model tidak berhasil dimuat, tampilkan form input saja
 if model is None:
+    st.title('Prediksi Tagihan Listrik Jakarta')
+    st.warning("⚠️ Model belum dapat dimuat. Silakan periksa requirements.txt dan file model.")
+    
+    # Tetap tampilkan input form untuk demo
+    st.sidebar.header('Input Parameter (Demo Mode)')
+    
+    def user_input_features():
+        kwh = st.sidebar.slider('Konsumsi KWH (kWh)', 150.0, 600.0, 350.0)
+        ac_units = st.sidebar.slider('Jumlah AC', 0, 3, 1)
+        ac_hours_per_day = st.sidebar.slider('Jam AC per Hari', 0.0, 10.0, 5.0)
+        family_size = st.sidebar.slider('Jumlah Anggota Keluarga', 2, 6, 4)
+
+        month_name = st.sidebar.selectbox('Bulan', ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
+        tariff_class = st.sidebar.selectbox('Kelas Tarif', ['R1', 'R2', 'R3'])
+
+        data = {
+            'kwh': kwh,
+            'ac_units': ac_units,
+            'ac_hours_per_day': ac_hours_per_day,
+            'family_size': family_size,
+            'month_name': month_name,
+            'tariff_class': tariff_class
+        }
+        return pd.DataFrame(data, index=[0])
+
+    df_input = user_input_features()
+    st.subheader('Parameter Input Pengguna:')
+    st.write(df_input)
+    
+    # Prediksi dummy
+    if st.sidebar.button('Prediksi Tagihan (Demo)'):
+        # Kalkulasi sederhana untuk demo
+        base_cost = df_input['kwh'][0] * 1500  # Rp 1.500 per kWh
+        ac_cost = df_input['ac_units'][0] * df_input['ac_hours_per_day'][0] * 1000
+        predicted = base_cost + ac_cost
+        
+        st.subheader('Hasil Prediksi (Demo Mode):')
+        st.success(f"Tagihan Diprediksi: **Rp {predicted:,.2f}**")
+        st.info("Ini adalah prediksi demo. Untuk prediksi akurat, pastikan model berhasil dimuat.")
+    
     st.stop()
 
-# Streamlit app title
+# Jika model berhasil dimuat, jalankan aplikasi normal
 st.title('Prediksi Tagihan Listrik Jakarta')
 st.write('Aplikasi untuk memprediksi jumlah tagihan listrik berdasarkan parameter yang diberikan.')
 
@@ -138,19 +184,8 @@ if st.sidebar.button('Prediksi Tagihan'):
         st.subheader('Hasil Prediksi Tagihan Listrik:')
         st.success(f"Tagihan Diprediksi: **Rp {prediction[0]:,.2f}**")
         
-        # Tambahan: Informasi tambahan
-        st.info("""
-        **Catatan:** Prediksi ini berdasarkan model machine learning dan dapat bervariasi 
-        tergantung kondisi aktual dan kebijakan tarif listrik.
-        """)
-        
     except Exception as e:
         st.error(f"Terjadi kesalahan saat melakukan prediksi: {e}")
-        st.markdown("""
-        **Solusi:**
-        - Pastikan model kompatibel dengan versi scikit-learn
-        - Periksa struktur input data
-        """)
 
 # Footer
 st.markdown("---")
