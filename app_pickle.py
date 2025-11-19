@@ -7,11 +7,44 @@ import os # Import os module to handle file paths
 # Get the directory of the current script
 script_dir = os.path.dirname(__file__)
 # Construct the full path to the model file
-model_path = os.path.join(script_dir, 'linear_regression_model.pkl')
+import streamlit as st
+import pandas as pd
+import pickle
+import os
 
-# Load the trained model
-with open(model_path, 'rb') as file:
-    model = pickle.load(file)
+# --- Perbaikan pada Jalur File (Lines 9-16) ---
+try:
+    # 1. Dapatkan direktori script (misalnya: /mount/src/listrik3)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # 2. Konstruksi jalur absolut ke file model
+    # Pastikan file model berada di direktori yang sama dengan script ini.
+    model_path = os.path.join(script_dir, 'linear_regression_model.pkl')
+    
+    # 3. Load model
+    with open(model_path, 'rb') as file:
+        model = pickle.load(file)
+        
+    st.sidebar.success("Model berhasil dimuat!")
+
+except FileNotFoundError:
+    st.error("ERROR: File model 'linear_regression_model.pkl' tidak ditemukan.")
+    st.markdown("""
+        **Solusi:** Pastikan file `linear_regression_model.pkl` sudah
+        di-commit dan di-push ke folder yang sama di repository GitHub Anda.
+    """)
+    # Hentikan eksekusi aplikasi jika model tidak dapat dimuat
+    st.stop()
+except Exception as e:
+    # Tangani error lain yang mungkin terjadi saat loading (misalnya ModuleNotFoundError)
+    st.error(f"Terjadi kesalahan saat memuat model (pickle.load): {e}")
+    st.markdown("""
+        **Solusi:** Pastikan semua library (seperti scikit-learn) yang digunakan
+        untuk membuat model sudah ada di `requirements.txt`.
+    """)
+    st.exception(e)
+    st.stop()
+# --- Akhir Perbaikan ---
 
 # Streamlit app title
 st.title('Prediksi Tagihan Listrik Jakarta')
