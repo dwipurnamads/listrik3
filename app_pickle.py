@@ -2,9 +2,15 @@
 import streamlit as st
 import pandas as pd
 import pickle # Using pickle for loading the model
+import os # Import os module to handle file paths
+
+# Get the directory of the current script
+script_dir = os.path.dirname(__file__)
+# Construct the full path to the model file
+model_path = os.path.join(script_dir, 'linear_regression_model.pkl')
 
 # Load the trained model
-with open('linear_regression_model.pkl', 'rb') as file:
+with open(model_path, 'rb') as file:
     model = pickle.load(file)
 
 # Streamlit app title
