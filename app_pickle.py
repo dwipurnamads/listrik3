@@ -1,50 +1,64 @@
-
-import streamlit as st
-import pandas as pd
-import pickle # Using pickle for loading the model
-import os # Import os module to handle file paths
-
-# Get the directory of the current script
-script_dir = os.path.dirname(__file__)
-# Construct the full path to the model file
 import streamlit as st
 import pandas as pd
 import pickle
 import os
 
-# --- Perbaikan pada Jalur File (Lines 9-16) ---
-try:
-    # 1. Dapatkan direktori script (misalnya: /mount/src/listrik3)
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # 2. Konstruksi jalur absolut ke file model
-    # Pastikan file model berada di direktori yang sama dengan script ini.
-    model_path = os.path.join(script_dir, 'linear_regression_model.pkl')
-    
-    # 3. Load model
-    with open(model_path, 'rb') as file:
-        model = pickle.load(file)
-        
-    st.sidebar.success("Model berhasil dimuat!")
+# Konfigurasi halaman
+st.set_page_config(
+    page_title="Prediksi Tagihan Listrik Jakarta",
+    page_icon="⚡",
+    layout="wide"
+)
 
-except FileNotFoundError:
-    st.error("ERROR: File model 'linear_regression_model.pkl' tidak ditemukan.")
-    st.markdown("""
-        **Solusi:** Pastikan file `linear_regression_model.pkl` sudah
-        di-commit dan di-push ke folder yang sama di repository GitHub Anda.
-    """)
-    # Hentikan eksekusi aplikasi jika model tidak dapat dimuat
+# Cache resource untuk model
+@st.cache_resource
+def load_model():
+    try:
+        # Coba beberapa lokasi yang mungkin
+        possible_paths = [
+            'linear_regression_model.pkl',
+            './linear_regression_model.pkl',
+            os.path.join(os.path.dirname(__file__), 'linear_regression_model.pkl')
+        ]
+        
+        model = None
+        for model_path in possible_paths:
+            try:
+                with open(model_path, 'rb') as file:
+                    model = pickle.load(file)
+                st.sidebar.success(f"Model berhasil dimuat dari: {model_path}")
+                break
+            except FileNotFoundError:
+                continue
+                
+        if model is None:
+            st.error("ERROR: File model 'linear_regression_model.pkl' tidak ditemukan.")
+            st.markdown("""
+                **Solusi:** 
+                1. Pastikan file `linear_regression_model.pkl` ada di repository GitHub
+                2. File harus berada di folder yang sama dengan script ini
+                3. Pastikan file sudah di-commit dan push ke GitHub
+            """)
+            return None
+            
+        return model
+        
+    except Exception as e:
+        st.error(f"Terjadi kesalahan saat memuat model: {e}")
+        st.markdown("""
+            **Kemungkinan penyebab:**
+            - Versi scikit-learn tidak kompatibel
+            - Model corrupted
+            - Library dependencies tidak lengkap
+        """)
+        return None
+
+# Load model
+model = load_model()
+
+# Jika model tidak berhasil dimuat, hentikan aplikasi
+if model is None:
     st.stop()
-except Exception as e:
-    # Tangani error lain yang mungkin terjadi saat loading (misalnya ModuleNotFoundError)
-    st.error(f"Terjadi kesalahan saat memuat model (pickle.load): {e}")
-    st.markdown("""
-        **Solusi:** Pastikan semua library (seperti scikit-learn) yang digunakan
-        untuk membuat model sudah ada di `requirements.txt`.
-    """)
-    st.exception(e)
-    st.stop()
-# --- Akhir Perbaikan ---
 
 # Streamlit app title
 st.title('Prediksi Tagihan Listrik Jakarta')
@@ -79,7 +93,6 @@ st.subheader('Parameter Input Pengguna:')
 st.write(df_input)
 
 # Define the exact columns and their dtypes expected by the model during training
-# This list ensures correct order and includes all dummy variables used during training
 training_columns_and_dtypes = {
     'kwh': 'float64',
     'ac_units': 'int64',
@@ -121,10 +134,24 @@ if selected_tariff_col in final_input_df.columns:
 # Make prediction
 if st.sidebar.button('Prediksi Tagihan'):
     try:
-        prediction = model.predict(final_input_df) # Use the new DataFrame name
+        prediction = model.predict(final_input_df)
         st.subheader('Hasil Prediksi Tagihan Listrik:')
-        st.write(f"Tagihan Diprediksi: Rp {prediction[0]:,.2f}")
+        st.success(f"Tagihan Diprediksi: **Rp {prediction[0]:,.2f}**")
+        
+        # Tambahan: Informasi tambahan
+        st.info("""
+        **Catatan:** Prediksi ini berdasarkan model machine learning dan dapat bervariasi 
+        tergantung kondisi aktual dan kebijakan tarif listrik.
+        """)
+        
     except Exception as e:
         st.error(f"Terjadi kesalahan saat melakukan prediksi: {e}")
-        st.exception(e)
+        st.markdown("""
+        **Solusi:**
+        - Pastikan model kompatibel dengan versi scikit-learn
+        - Periksa struktur input data
+        """)
 
+# Footer
+st.markdown("---")
+st.markdown("Aplikasi Prediksi Tagihan Listrik © 2024")
